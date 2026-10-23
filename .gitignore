@@ -1,0 +1,25 @@
+# Compiled binaries and release artifacts
+/dist/
+/build/bin/
+*.exe
+*.dll
+*.so
+*.dylib
+*.zip
+*.tar.gz
+
+# Keep frontend embedded dist tracked
+!/frontend/dist/
+
+# Node & frontend dependencies
+node_modules/
+
+# Go test & coverage
+*.test
+*.out
+
+# IDE & OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,11 @@
+{
+  "name": "nacos-config-sync-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/dev.mjs",
+    "test": "node scripts/test-render-lines.mjs"
+  }
+}
