@@ -1,8 +1,14 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
+	"testing/fstest"
 
 	"nacos-config-sync-tools/internal/store"
 )
@@ -144,5 +150,49 @@ func TestRemoveIgnoreRuleDeletesOnlyMatchingRule(t *testing.T) {
 	}
 	if cfg.IgnoreRules[0].Path != "spring.cloud.nacos.discovery.server-addr" {
 		t.Fatalf("remaining rule = %+v, want nacos server-addr rule", cfg.IgnoreRules[0])
+	}
+}
+
+func TestWebHandlerServesIndexWithBridgeAndHandlesRPC(t *testing.T) {
+	settingsPath := filepath.Join(t.TempDir(), "settings.json")
+	app := &App{
+		store:       store.NewFileStore(settingsPath),
+		credentials: &fakeCredentialStore{},
+	}
+	distFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("<!doctype html><html><head></head><body></body></html>"),
+		},
+	}
+	handler := newWebHandler(app, distFS)
+
+	getReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	getRec := httptest.NewRecorder()
+	handler.ServeHTTP(getRec, getReq)
+	if getRec.Code != http.StatusOK || !strings.Contains(getRec.Body.String(), "window.go") {
+		t.Fatalf("expected index.html to include window.go RPC bridge, got status %d body %q", getRec.Code, getRec.Body.String())
+	}
+
+	body, _ := json.Marshal(map[string]any{
+		"method": "AddIgnoreRule",
+		"args": []any{
+			map[string]any{"dataId": "demo.yml", "path": "server.port", "reason": "test"},
+		},
+	})
+	postReq := httptest.NewRequest(http.MethodPost, "/api/rpc", bytes.NewReader(body))
+	postRec := httptest.NewRecorder()
+	handler.ServeHTTP(postRec, postReq)
+	if postRec.Code != http.StatusOK {
+		t.Fatalf("expected RPC status 200, got %d: %s", postRec.Code, postRec.Body.String())
+	}
+	var resp struct {
+		Result store.AppConfig `json:"result"`
+		Error  string          `json:"error"`
+	}
+	if err := json.Unmarshal(postRec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal RPC response: %v", err)
+	}
+	if resp.Error != "" || len(resp.Result.IgnoreRules) != 1 {
+		t.Fatalf("unexpected RPC response: %+v", resp)
 	}
 }
